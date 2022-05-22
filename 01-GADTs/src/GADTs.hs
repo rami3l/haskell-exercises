@@ -1,7 +1,9 @@
 {-# LANGUAGE GADTs #-}
 
-module {- 1, in which we'll cover -} GADTs {- in isolation. This is very basic,
-and we'll see -} where {- they really shine when we come to things like
+{- 1, in which we'll cover -} module GADTs {- in isolation. This is very basic,
+                                           and we'll see -} where
+
+{- they really shine when we come to things like
 ConstraintKinds and DataKinds. -}
 
 ---
@@ -19,7 +21,7 @@ data List a = Nil | Cons a (List a)
 -}
 
 instance Show a => Show (List a) where
-  show  Nil             = "[]"
+  show Nil = "[]"
   show (Cons head tail) = show head ++ " : " ++ show tail
 
 {-
@@ -70,7 +72,7 @@ example1 = show (Cons 2 (Cons 3 Nil))
 -}
 
 data ShowList where
-  ShowNil  :: ShowList
+  ShowNil :: ShowList
   ShowCons :: Show a => a -> ShowList -> ShowList
 
 {-
@@ -91,7 +93,7 @@ data ShowList where
 -}
 
 instance Show ShowList where
-  show  ShowNil             = "[]"
+  show ShowNil = "[]"
   show (ShowCons head tail) = show head ++ " : " ++ show tail
 
 {-
@@ -102,6 +104,7 @@ instance Show ShowList where
 
 example2 :: String
 example2 = show (ShowCons "Tom" (ShowCons 25 (ShowCons True ShowNil)))
+
 --              This is the "do you like dogs?" flag :) ^
 
 {-
@@ -156,5 +159,5 @@ example2 = show (ShowCons "Tom" (ShowCons 25 (ShowCons True ShowNil)))
 -}
 
 showListHead' :: ShowList -> Maybe String
-showListHead'  ShowNil          = Nothing
+showListHead' ShowNil = Nothing
 showListHead' (ShowCons head _) = Just (show head)
