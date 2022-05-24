@@ -1,11 +1,13 @@
-{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 
-{- Today's -} module {- will focus on one of my favourite GHC magic tricks: the
--} DataKinds {- extension. We'll see how and -} where {- to use it to enhance
-GADTs in particular, but there are plenty more cases to follow! -}
+{- Today's -}
+{- will focus on one of my favourite GHC magic tricks: the
+-} module DataKinds {- extension. We'll see how and -} where
+
+{- to use it to enhance GADTs in particular, but there are plenty more cases to follow! -}
 
 ---
 
@@ -36,10 +38,13 @@ data Natural = Zero | Successor Natural
 -}
 
 class ConstraintKind (a :: Constraint)
+
 instance ConstraintKind (Eq Int)
 
 class TypeToType (a :: Type -> Type)
+
 instance TypeToType Maybe
+
 instance TypeToType (Either Int)
 
 {-
@@ -64,8 +69,12 @@ instance TypeToType (Either Int)
 -}
 
 class NaturalKind (a :: Natural)
+
+-- PS: Prepending ticks before a type is no longer recommended as per https://gitlab.haskell.org/ghc/ghc/-/issues/20531.
 instance NaturalKind 'Zero
+
 instance NaturalKind ('Successor 'Zero)
+
 instance NaturalKind ('Successor ('Successor 'Zero))
 
 {-
@@ -78,7 +87,7 @@ instance NaturalKind ('Successor ('Successor 'Zero))
 -}
 
 data Vector (length :: Natural) (a :: Type) where
-  VNil  :: Vector 'Zero a
+  VNil :: Vector 'Zero a
   VCons :: a -> Vector n a -> Vector ('Successor n) a
 
 {-
@@ -89,7 +98,7 @@ data Vector (length :: Natural) (a :: Type) where
 -}
 
 head :: Vector ('Successor n) a -> a
-head (VCons head _) = head
+head (VCons a _) = a
 
 {-
   'head' is a /total/ function. We don't have to match on the 'VNil' case
@@ -99,8 +108,8 @@ head (VCons head _) = head
 -}
 
 zip :: Vector n a -> Vector n b -> Vector n (a, b)
-zip  VNil         VNil        = VNil
-zip (VCons x xs) (VCons y ys) = VCons (x, y) (zip xs ys)
+VNil `zip` VNil = VNil
+(VCons x xs) `zip` (VCons y ys) = VCons (x, y) $ xs `zip` ys
 
 {-
   Now, if you've written 'zip' before, you'll be used to seeing /four/ cases on
