@@ -11,6 +11,7 @@ import Data.Function ((&))
 import Data.Kind (Type)
 import Data.Void (Void, absurd)
 import GHC.Types (Constraint)
+import Prelude hiding ((!!))
 
 {- ONE -}
 
@@ -117,37 +118,47 @@ data List a = Nil | Cons a (List a)
 -- exercise. Bear in mind that, at the type-level, 'Nil' and 'Cons' should be
 -- "ticked". Remember also that, at the type-level, there's nothing weird about
 -- having a list of types!
-data HList (types :: List Type)
-
--- HNil  :: ...
--- HCons :: ...
+data HList (types :: List Type) where
+  HNil :: HList Nil
+  HCons :: a -> HList as -> HList (Cons a as)
 
 -- | b. Write a well-typed, 'Maybe'-less implementation for the 'tail' function
 -- on 'HList'.
+htail :: HList (Cons a as) -> HList as
+htail (HCons a as) = as
 
 -- | c. Could we write the 'take' function? What would its type be? What would
 -- get in our way?
+-- This will eventually happen in chapter 10.
 
 {- SIX -}
 
 -- | Here's a boring data type:
+
+{-
 data BlogAction
   = AddBlog
   | DeleteBlog
   | AddComment
   | DeleteComment
+-}
 
 -- | a. Two of these actions, 'DeleteBlog' and 'DeleteComment', should be
 -- admin-only. Extend the 'BlogAction' type (perhaps with a GADT...) to
 -- express, at the type-level, whether the value is an admin-only operation.
 -- Remember that, by switching on @DataKinds@, we have access to a promoted
 -- version of 'Bool'!
+data AccessLevel = Admin | User | Moderator
+
+data BlogAction (ls :: [AccessLevel]) where
+  AddBlog :: BlogAction [User, Moderator, Admin]
+  DeleteBlog :: BlogAction '[Admin]
+  AddComment :: BlogAction [User, Moderator, Admin]
+  DeleteComment :: BlogAction [Moderator, Admin]
 
 -- | b. Write a 'BlogAction' list type that requires all its members to be
 -- the same "access level": "admin" or "non-admin".
-
--- data BlogActionList (isSafe :: ???) where
---   ...
+newtype BlogActionList (ls :: [AccessLevel]) = BlogActionList [BlogAction ls]
 
 -- | c. Let's imagine that our requirements change, and 'DeleteComment' is now
 -- available to a third role: moderators. Could we use 'DataKinds' to introduce
@@ -165,45 +176,60 @@ data BlogAction
 -- We can, however, /build/ a singleton type for 'Bool':
 
 data SBool (value :: Bool) where
-  SFalse :: SBool 'False
-  STrue :: SBool 'True
+  SFalse :: SBool False
+  STrue :: SBool True
 
 -- | a. Write a singleton type for natural numbers:
-data SNat (value :: Nat)
-
--- ...
+data SNat (n :: Nat) where
+  SZ :: SNat Z
+  SS :: SNat n -> SNat (S n)
 
 -- | b. Write a function that extracts a vector's length at the type level:
-length :: Vector n a -> SNat n
-length = error "Implement me!"
+vlength :: Vector n a -> SNat n
+vlength VNil = SZ
+vlength (VCons a as) = SS (vlength as)
 
 -- | c. Is 'Proxy' a singleton type?
 data Proxy a = Proxy
+
+-- No - @Proxy :: Proxy Int@ and @Proxy :: Proxy String@ have the same value-level representation.
+-- Thus, the correspondence is not one-to-one.
 
 {- EIGHT -}
 
 -- | Let's imagine we're writing some Industry Haskell™, and we need to read
 -- and write to a file. To do this, we might write a data type to express our
 -- intentions:
+
+{-
 data Program result
   = OpenFile (Program result)
   | WriteFile String (Program result)
   | ReadFile (String -> Program result)
   | CloseFile (Program result)
   | Exit result
+-}
+data Program (fileOpen :: Bool) r where
+  -- The execution order of the program seems to be outside in, so the arrow direction
+  -- here is also a bit counterintuitive...
+  OpenFile :: Program True r -> Program False r
+  WriteFile :: String -> Program True r -> Program True r
+  ReadFile :: (String -> Program True r) -> Program True r
+  CloseFile :: Program False r -> Program True r
+  Exit :: r -> Program False r
 
 -- | We could then write a program like this to use our language:
-myApp :: Program Bool
+myApp :: Program False Bool
 myApp =
-  OpenFile $
-    WriteFile "HEY" $
-      ( ReadFile $ \contents ->
+  OpenFile . WriteFile "HEY" $
+    ReadFile
+      ( \contents ->
           if contents == "WHAT"
-            then WriteFile "... bug?" $ Exit False
+            then WriteFile "... bug?" $ CloseFile $ Exit False
             else CloseFile $ Exit True
       )
 
--- | ... but wait, there's a bug! If the contents of the file equal "WHAT", we
+-- | ... but wait, there's a bug! If the contents of the file equals "WHAT", we
 -- forget to close the file! Ideally, we would like the compiler to help us: we
 -- could keep track of whether the file is open at the type level!
 --
@@ -225,15 +251,17 @@ myApp =
 
 -- | EXTRA: write an interpreter for this program. Nothing to do with data
 -- kinds, but a nice little problem.
-interpret :: Program {- ??? -} a -> IO a
+
+{- interpret :: Program {- ??? -} a -> IO a
 interpret = error "Implement me?"
+-}
 
 {- NINE -}
 
 -- | Recall our vector type:
 data Vector (n :: Nat) (a :: Type) where
-  VNil :: Vector 'Z a
-  VCons :: a -> Vector n a -> Vector ('S n) a
+  VNil :: Vector Z a
+  VCons :: a -> Vector n a -> Vector (S n) a
 
 -- | Imagine we want to write the '(!!)' function for this vector. If we wanted
 -- to make this type-safe, and avoid 'Maybe', we'd have to have a type that can
@@ -241,12 +269,33 @@ data Vector (n :: Nat) (a :: Type) where
 
 -- | a. Implement this type! This might seem scary at first, but break it down
 -- into Z and S cases. That's all the hint you need :)
-data SmallerThan (limit :: Nat)
-
--- ...
+data SmallerThan (lim :: Nat) where
+  -- NOTE: Consider this as a PROOF!!! (cf. https://plfa.github.io/Relations)
+  -- 0 < n + 1
+  ZltS :: SmallerThan (S n)
+  -- x < n ⇒ x + 1 < n + 1
+  SltS :: SmallerThan n -> SmallerThan (S n)
 
 -- | b. Write the '(!!)' function:
 (!!) :: Vector n a -> SmallerThan n -> a
-(!!) = error "Implement me!"
+VCons a _ !! ZltS = a
+VCons _ as !! SltS n = as !! n
+
+-- An example of using the '(!!)' function:
+type Two = S (S Z)
+
+type Five = S (S (S (S (S Z))))
+
+aVector :: Vector Five Int
+aVector = VNil & VCons 4 & VCons 3 & VCons 2 & VCons 1 & VCons 0
+
+threeLtFive :: SmallerThan Five
+threeLtFive = (ZltS :: SmallerThan Two {- 0 < 2 -}) & SltS {- 1 < 3 -} & SltS {- 2 < 4 -} & SltS {- 3 < 5 -}
+
+getThird :: Int
+getThird = aVector !! threeLtFive
 
 -- | c. Write a function that converts a @SmallerThan n@ into a 'Nat'.
+sup :: SmallerThan lim -> Nat
+sup ZltS = Z
+sup (SltS n) = S $ sup n
