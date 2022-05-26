@@ -284,7 +284,7 @@ VCons _ as !! SltS n = as !! n
 -- An example of using the '(!!)' function:
 type Two = S (S Z)
 
-type Five = S (S (S (S (S Z))))
+type Five = S (S (S Two))
 
 aVector :: Vector Five Int
 aVector = VNil & VCons 4 & VCons 3 & VCons 2 & VCons 1 & VCons 0
