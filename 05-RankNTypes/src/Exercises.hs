@@ -7,6 +7,7 @@ module Exercises where
 
 import Data.Function ((&))
 import Data.Kind (Type)
+import Data.Maybe (fromMaybe)
 
 {- ONE -}
 
@@ -89,20 +90,29 @@ data Nested input output subinput suboutput = Nested
   }
 
 -- | a. Write a GADT to existentialise @subinput@ and @suboutput@.
-data NestedX input output
-
--- ...
+data NestedX input output where
+  NestedX :: Nested input output subinput suboutput -> NestedX input output
 
 -- | b. Write a function to "unpack" a NestedX. The user is going to have to
 -- deal with all possible @subinput@ and @suboutput@ types.
+unnestedX :: (forall si so. Nested i o si so -> r) -> NestedX i o -> r
+unnestedX f (NestedX nx) = f nx
 
 -- | c. Why might we want to existentialise the subtypes away? What do we lose
 -- by doing so? What do we gain?
+
+-- From a global view, a component in a 'NestedX' black box should only expose
+-- its input and output types. Other details thus need to be abstracted away.
 
 -- In case you're interested in where this actually turned up in the code:
 -- https://github.com/i-am-tom/purescript-panda/blob/master/src/Panda/Internal/Types.purs#L84
 
 {- FIVE -}
+
+-- ! WARNING: This is a potential antipattern.
+-- Different from e.g. Rust, there's no point in Haskell to store an object that
+-- "will eventually be used somehow". Thanks to Haskell's laziness, storing a
+-- Box<dyn Into<String>> is ISOMORPHIC to storing a String.
 
 -- | Let's continue with the theme of the last question. Let's say I have a few
 -- HTML-renderable components:
@@ -115,9 +125,7 @@ data FirstGo input output
 -- | This is fine, but there's an issue: some functions only really apply to
 -- 'FText' /or/ 'FHTML'. Now that this is a sum type, they'd have to result in
 -- a 'Maybe'! Let's avoid this by splitting this sum type into separate types:
-data Text = Text String
-
--- data HTML = HTML { properties :: (String, String), children :: ??? }
+newtype Text = Text String
 
 -- | Uh oh! What's the type of our children? It could be either! In fact, it
 -- could probably be anything that implements the following class, allowing us
@@ -125,9 +133,13 @@ data Text = Text String
 class Renderable component where render :: component -> String
 
 -- | a. Write a type for the children.
+data Child where Child :: Renderable r => r -> Child
+
+data HTML = HTML {properties :: (String, String), children :: [Child]}
 
 -- | b. What I'd really like to do when rendering is 'fmap' over the children
 -- with 'render'; what's stopping me? Fix it!
+instance Renderable Child where render (Child r) = render r
 
 -- | c. Now that we're an established Haskell shop, we would /also/ like the
 -- option to render our HTML to a Shakespeare template to write to a file
@@ -145,11 +157,26 @@ data MysteryBox a where
 
 -- | a. Knowing what we now know about RankNTypes, we can write an 'unwrap'
 -- function! Write the function, and don't be too upset if we need a 'Maybe'.
+unwrapWith :: MysteryBox a -> (forall a. MysteryBox a -> r) -> Maybe r
+unwrapWith EmptyBox _ = Nothing
+unwrapWith (IntBox _ xs) f = Just $ f xs
+unwrapWith (StringBox _ xs) f = Just $ f xs
+unwrapWith (BoolBox _ xs) f = Just $ f xs
 
 -- | b. Why do we need a 'Maybe'? What can we still not know?
 
+-- We don't know how to unwrap an 'EmptyBox'.
+
 -- | c. Write a function that uses 'unwrap' to print the name of the next
 -- layer's constructor.
+layerName :: MysteryBox a -> String
+layerName EmptyBox = "EmptyBox"
+layerName (IntBox _ _) = "IntBox"
+layerName (StringBox _ _) = "StringBox"
+layerName (BoolBox _ _) = "BoolBox"
+
+innerLayerName :: MysteryBox a -> String
+innerLayerName = fromMaybe "No Inner Layer!" . (`unwrapWith` layerName)
 
 {- SEVEN -}
 
@@ -157,12 +184,13 @@ data MysteryBox a where
 data Nat = Z | S Nat
 
 data SNat (n :: Nat) where
-  SZ :: SNat 'Z
-  SS :: SNat n -> SNat ('S n)
+  SZ :: SNat Z
+  SS :: SNat n -> SNat (S n)
 
 -- | We also saw that we could convert from an 'SNat' to a 'Nat':
 toNat :: SNat n -> Nat
-toNat = error "You should already know this one ;)"
+toNat SZ = Z
+toNat (SS n) = S $ toNat n
 
 -- | How do we go the other way, though? How do we turn a 'Nat' into an 'SNat'?
 -- In the general case, this is impossible: the 'Nat' could be calculated from
@@ -174,6 +202,9 @@ toNat = error "You should already know this one ;)"
 -- SNat-accepting function (maybe at a higher rank?) that returns an @r@, and
 -- then returns an @r@. The successor case is a bit weird here - type holes
 -- will help you!
+fromNat :: Nat -> (forall n. SNat n -> r) -> r
+fromNat Z s2r = s2r SZ
+fromNat (S n) s2r = fromNat n (s2r . SS)
 
 -- | If you're looking for a property that you could use to test your function,
 -- remember that @fromNat x toNat === x@!
@@ -182,9 +213,12 @@ toNat = error "You should already know this one ;)"
 
 -- | Bringing our vector type back once again:
 data Vector (n :: Nat) (a :: Type) where
-  VNil :: Vector 'Z a
-  VCons :: a -> Vector n a -> Vector ('S n) a
+  VNil :: Vector Z a
+  VCons :: a -> Vector n a -> Vector (S n) a
 
 -- | It would be nice to have a 'filter' function for vectors, but there's a
 -- problem: we don't know at compile time what the new length of our vector
 -- will be... but has that ever stopped us? Make it so!
+vfilter :: (a -> Bool) -> Vector n a -> (forall m. Vector m a -> r) -> r
+vfilter _ VNil v2r = v2r VNil
+vfilter pred (VCons a as) v2r = vfilter pred as (if pred a then v2r . VCons a else v2r)
