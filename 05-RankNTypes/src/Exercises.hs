@@ -64,7 +64,7 @@ unpackEqPair faar (EqPair a a') = faar a a'
 -- | b. Write a function that takes a list of 'EqPair's and filters it
 -- according to some predicate on the unpacked values.
 epfilter :: (forall a. Eq a => a -> a -> Bool) -> [EqPair] -> [EqPair]
-epfilter f ps = ps & filter (unpackEqPair f)
+epfilter f = filter (unpackEqPair f)
 
 -- | c. Write a function that unpacks /two/ 'EqPair's. Now that both our
 -- variables are in rank-2 position, can we compare values from different

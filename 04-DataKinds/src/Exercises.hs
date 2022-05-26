@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 
 module Exercises where
 
@@ -22,7 +23,9 @@ data IntegerMonoidKind = Sum | Product
 
 -- | a. Write a newtype around 'Integer' that lets us choose which instance we
 -- want.
-newtype IntegerMonoid (m :: IntegerMonoidKind) = IntegerMono Integer
+-- NOTE: New syntax enabled by @{-# LANGUAGE StandaloneKindSignatures #-}@
+type IntegerMonoid :: IntegerMonoidKind -> Type
+newtype IntegerMonoid m = IntegerMono Integer
 
 -- | b. Write the two monoid instances for 'Integer'.
 instance Semigroup (IntegerMonoid Sum) where

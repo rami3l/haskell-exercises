@@ -1,9 +1,11 @@
-{-# LANGUAGE DataKinds    #-}
-{-# LANGUAGE GADTs        #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 
-{- Today's -} module {- will be a very brief introduction to -} TypeFamilies {-
-and their uses. We're not going to go -} where {- Csongor's talk went, though
+{- Today's -} {- will be a very brief introduction to -} module TypeFamilies {-
+                                                                             and their uses. We're not going to go -} where
+
+{- Csongor's talk went, though
 there is plenty of further reading to be done if you're interested! -}
 
 import Data.Kind (Type)
@@ -15,18 +17,18 @@ data Nat = Z | S Nat
 -}
 
 add :: Nat -> Nat -> Nat
-add  Z    y = y
+add Z y = y
 add (S x) y = S (add x y)
 
 {-
-  Type families, by their simplest definition, are functions at the type-level.
+  Type families, by their simplest definition, are FUNCTIONS AT THE TYPE-LEVEL.
   In case you're wondering, the @TypeFamilies@ extension implies the
   @KindSignatures@ extension:
 -}
 
 type family Add (x :: Nat) (y :: Nat) :: Nat where
-  Add  'Z    y = y
-  Add ('S x) y = 'S (Add x y)
+  Add Z y = y
+  Add (S x) y = S (Add x y)
 
 {-
   The syntax is a bit funny, but hopefully the symmetry is obvious: we specify
@@ -53,8 +55,8 @@ type instance Open (Maybe Bool) = IO Int
 -}
 
 data SBool (value :: Bool) where
-  STrue  :: SBool 'True
-  SFalse :: SBool 'False
+  STrue :: SBool True
+  SFalse :: SBool False
 
 {-
   What if we wanted to "flip" the boolean value? What would the type signature
@@ -63,15 +65,15 @@ data SBool (value :: Bool) where
 -}
 
 type family Not (input :: Bool) :: Bool where
-  Not 'True  = 'False
-  Not 'False = 'True
+  Not True = False
+  Not False = True
 
 {-
   Now, we can write the function and its signature!
 -}
 
 not :: SBool input -> SBool (Not input)
-not STrue  = SFalse
+not STrue = SFalse
 not SFalse = STrue
 
 {-
@@ -79,13 +81,13 @@ not SFalse = STrue
   will be evaluated for each pattern-match in our function. That's all there is
   to it!
 
-  One last thing that may be of interest: type families don't necessarily have
-  to be total.
+  One last thing that may be of interest: type families DON'T NECESSARILY HAVE
+  TO BE TOTAL.
 -}
 
 type family Subtract (x :: Nat) (y :: Nat) :: Nat where
-  Subtract     x   'Z    = x
-  Subtract ('S x) ('S y) = Subtract x y
+  Subtract x Z = x
+  Subtract (S x) (S y) = Subtract x y
 
 {-
   'Subtract' subtracts the second value from the first. However, it doesn't
