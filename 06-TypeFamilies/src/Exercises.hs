@@ -11,7 +11,7 @@
 module Exercises where
 
 import Data.Kind (Constraint, Type)
-import Data.Type.Bool (If)
+import Data.Type.Bool (If, Not)
 import Data.Type.Equality (type (:~:) (Refl), type (==))
 
 -- | Before we get started, let's talk about the @TypeOperators@ extension. All
@@ -48,7 +48,12 @@ type Ten = S Nine
 type (+) :: Nat -> Nat -> Nat
 type family x + y where
   Z + y = y
-  (S x) + y = S (x + y)
+  S x + y = S (x + y)
+
+type (-) :: Nat -> Nat -> Nat
+type family x - y where
+  x - Z = x
+  S x - S y = x - y
 
 -- | b. Write a type family '*' that multiplies two naturals using '(+)'. Which
 -- extension are you being told to enable? Why?
@@ -228,7 +233,11 @@ data HList xs where
   HNil :: HList '[]
   HCons :: x -> HList xs -> HList (x : xs)
 
-type (++) :: [Type] -> [Type] -> [Type]
+-- Originally:
+-- type (++) :: [Type] -> [Type] -> [Type]
+
+-- Changed to the following for Q9 (exploiting @PolyKinds@):
+type (++) :: [k] -> [k] -> [k]
 type family as ++ bs where
   '[] ++ bs = bs
   (a : as) ++ bs = a : as ++ bs
@@ -286,12 +295,56 @@ instance (Eq `AllHave` as, Ord `AllHave` as) => Ord (HList as) where
 -- deriving instance Show `AllHave` as => Show (HList as)
 -- deriving instance Eq `AllHave` as => Eq (HList as)
 -- deriving instance (Eq `AllHave` as, Ord `AllHave` as) => Ord (HList as)
-
 {- NINE -}
 
 -- | a. Write a type family to calculate all natural numbers up to a given
 -- input natural.
+type UpTo :: Nat -> [Nat]
+type family UpTo x where
+  UpTo Z = '[Z]
+  UpTo (S x) = UpTo x ++ '[S x]
 
 -- | b. Write a type-level prime number sieve.
 
+-- sieve (x:xs) = x:(sieve $ filter (\a -> a `mod` x /= 0) xs)
+type PrimesUpTo :: Nat -> [Nat]
+type family PrimesUpTo x where
+  PrimesUpTo x = Sieve ((Drop Two) (UpTo x))
+
+type Drop :: Nat -> [k] -> [k]
+type family Drop n xs where
+  Drop _ '[] = '[]
+  Drop Z xs = xs
+  Drop (S n) (x : xs) = Drop n xs
+
+type Sieve :: [Nat] -> [Nat]
+type family Sieve xs where
+  Sieve '[] = '[]
+  Sieve (x : xs) = x : Sieve (DropEvery x xs)
+
+type DropEvery :: Nat -> [Nat] -> [Nat]
+type family DropEvery n xs where
+  DropEvery n xs = DropEvery' n n xs
+
+type DropEvery' :: Nat -> Nat -> [Nat] -> [Nat]
+type family DropEvery' n c xs where
+  DropEvery' n _ '[] = '[]
+-- Every time the counter @c@ drops to 'One', a term is skipped and @c@ is reset to @n@.
+  DropEvery' n One (x : xs) = DropEvery' n n xs
+  DropEvery' n (S c) (x : xs) = x : DropEvery' n c xs
+
+testSieve :: PrimesUpTo Ten :~: '[Two, Three, Five, Seven]
+testSieve = Refl
+
 -- | c. Why is this such hard work?
+
+-- I think it boils down to a few things:
+--
+-- * No let-binding at the type level.
+--
+-- * No higher-order functions - I can't write higher-order helpers without
+--   running into complaints about type families not having all their
+--   arguments. Recent work on unsaturated type families (type families without
+--   all their arguments) promises a solution to this, though!
+--
+-- * Syntax!
