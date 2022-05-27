@@ -1,17 +1,18 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 module Exercises where
 
 import Data.Kind (Constraint, Type)
 import Data.Type.Bool (If)
-import Data.Type.Equality (type (==), type (:~:) (Refl))
+import Data.Type.Equality (type (:~:) (Refl), type (==))
 
 -- | Before we get started, let's talk about the @TypeOperators@ extension. All
 -- this does is allow us to write types whose names are operators, and write
@@ -183,19 +184,19 @@ type family TMaximum xs where
 type ATree = Node (Node Empty Three Empty) Five (Node Empty Seven Empty)
 
 insertTest0 ::
-  Six `Insert` ATree 
-  :~: Node
-    (Node Empty Three Empty)
-    Five
-    (Node (Node Empty Six Empty) Seven Empty)
+  Six `Insert` ATree
+    :~: Node
+          (Node Empty Three Empty)
+          Five
+          (Node (Node Empty Six Empty) Seven Empty)
 insertTest0 = Refl
 
 insertTest1 ::
-  One `Insert` ATree 
-  :~: Node
-    (Node (Node Empty One Empty) Three Empty)
-    Five
-    (Node Empty Seven Empty)
+  One `Insert` ATree
+    :~: Node
+          (Node (Node Empty One Empty) Three Empty)
+          Five
+          (Node Empty Seven Empty)
 insertTest1 = Refl
 
 insertTest2 :: Five `Insert` ATree :~: ATree
@@ -212,7 +213,7 @@ deleteTest2 = Refl
 
 deleteTest3 ::
   Insert (S Z) (Insert Z Empty)
-  :~: 'Node 'Empty Z (Node Empty (S Z) Empty)
+    :~: 'Node 'Empty Z (Node Empty (S Z) Empty)
 deleteTest3 = Refl
 
 deleteTest4 :: Five `Delete` ATree :~: Node Empty Three (Node Empty Seven Empty)
@@ -227,13 +228,10 @@ data HList xs where
   HNil :: HList '[]
   HCons :: x -> HList xs -> HList (x : xs)
 
--- Require Relude.Extra.Type.AllHave
--- deriving instance Show `AllHave` as => Show (HList as)
-
 type (++) :: [Type] -> [Type] -> [Type]
 type family as ++ bs where
   '[] ++ bs = bs
-  (a:as) ++ bs = a : as ++ bs
+  (a : as) ++ bs = a : as ++ bs
 
 -- | Write a function that appends two 'HList's.
 happend :: HList as -> HList bs -> HList (as ++ bs)
@@ -251,20 +249,43 @@ HNil `happend` bs = bs
 -- - Unlike tuples, constraints are "auto-flattened": ((a, b), (c, (d, ())) is
 --   exactly equivalent to (a, b, c, d). Thanks to this property, we can build
 --   up constraints using type families!
-type family CAppend (x :: Constraint) (y :: Constraint) :: Constraint where
-  CAppend x y = (x, y)
+type CAppend :: Constraint -> Constraint -> Constraint
+type family x `CAppend` y where
+  x `CAppend` y = (x, y)
 
 -- | a. Write a family that takes a constraint constructor, and a type-level
 -- list of types, and builds a constraint on all the types.
-type family Every (c :: Type -> Constraint) (x :: [Type]) :: Constraint where
 
--- ...
+-- Copied from @Relude.Extra.Type.AllHave@:
+type AllHave :: (k -> Constraint) -> [k] -> Constraint
+type family f `AllHave` xs where
+  _ `AllHave` '[] = ()
+  f `AllHave` (x : xs) = (f x, f `AllHave` xs)
 
 -- | b. Write a 'Show' instance for 'HList' that requires a 'Show' instance for
 -- every type in the list.
+instance Show `AllHave` as => Show (HList as) where
+  show HNil = "HNil"
+  show (HCons a as) =
+    "HCons " ++ show a ++ " " ++ case as of
+      HNil -> show as
+      _ -> "(" ++ show as ++ ")"
 
 -- | c. Write an 'Eq' instance for 'HList'. Then, write an 'Ord' instance.
 -- Was this expected behaviour? Why did we need the constraints?
+instance Eq `AllHave` as => Eq (HList as) where
+  HNil == HNil = True
+  HCons a as == HCons b bs = a == b && as == bs
+
+instance (Eq `AllHave` as, Ord `AllHave` as) => Ord (HList as) where
+  HNil `compare` HNil = EQ
+  HCons a as `compare` HCons b bs = (a `compare` b) <> (as `compare` bs)
+
+-- In practice, these implementations are so trivial that GHC can even derive them:
+
+-- deriving instance Show `AllHave` as => Show (HList as)
+-- deriving instance Eq `AllHave` as => Eq (HList as)
+-- deriving instance (Eq `AllHave` as, Ord `AllHave` as) => Ord (HList as)
 
 {- NINE -}
 
