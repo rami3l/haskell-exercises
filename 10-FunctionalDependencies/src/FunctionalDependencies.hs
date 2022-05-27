@@ -1,14 +1,17 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE FunctionalDependencies #-}
 
-{- I'd quite like a -} module {- please,
-on -} FunctionalDependencies {-
-On the left I'll write types
-to determine the right,
-and infer them -} where{-ever I please. -}
+{- I'd quite like a -}
+{- please,
+on -} module FunctionalDependencies {-
+                                    On the left I'll write types
+                                    to determine the right,
+                                    and infer them -} where
+
+{-ever I please. -}
 
 {-
   In the last session, we looked at multi-parameter type classes as a method of
@@ -96,7 +99,7 @@ tested = print (transform True)
   probably isn't a particularly helpful extension given only what we've seen so
   far. It certainly doesn't get us any closer to being able to /use/ the @help@
   function! What we /need/ is a way of saying:
-  
+
   /Each @a@ has a unique @b@ value. If you know @a@, there will be /at most
   one/ instance of the class in scope, and that will tell you what @b@ is./
 
@@ -108,15 +111,15 @@ tested = print (transform True)
 
 -- The functional dependency syntax --v
 class MoreHelpfulTransformer a b | a -> b where
-  moreF    :: a -> b
+  moreF :: a -> b
   moreHelp :: a
 
 instance MoreHelpfulTransformer Int String where
-  moreF    = show
+  moreF = show
   moreHelp = 25
 
 instance MoreHelpfulTransformer String String where
-  moreF    = id
+  moreF = id
   moreHelp = "Tom"
 
 {-
@@ -164,14 +167,13 @@ testest = print (moreF (25 :: Int))
   dependencies!
 -}
 
-class Example a b c d
-  | a b c -> d -- Many left-hand things - every @a@/@b@/@c@ combination must
-               -- have the same @d@!
-
-  , a d -> b c -- Many right-hand things - every @a@/@d@ combination must have
-               -- the same @b@/@c@!
-
-  , c -> a    -- Commas separate multiple functional dependencies.
+class
+  Example a b c d
+    | a b c -> d -- Many left-hand things - every @a@/@b@/@c@ combination must
+    -- have the same @d@!
+    , a d -> b c -- Many right-hand things - every @a@/@d@ combination must have
+    -- the same @b@/@c@!
+    , c -> a -- Commas separate multiple functional dependencies.
 
 {-
   The only thing that is important is that there cannot be any

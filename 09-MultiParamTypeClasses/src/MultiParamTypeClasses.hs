@@ -2,13 +2,17 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 
-{- Our -} module {- du jour is strangely-abbreviated and weirdly-capitalised:
-the -} MultiParamTypeClasses {- extension opens a lot of doors for us that
-we'll explore in this chapter /and/ future chapters - Let's see -} where {- we
-end up! -}
+{- Our -}
+{- du jour is strangely-abbreviated and weirdly-capitalised:
+the -} module MultiParamTypeClasses {- extension opens a lot of doors for us that
+                                    we'll explore in this chapter /and/ future chapters - Let's see -} where
 
-import Data.Kind (Type)
+{- we end up! -}
+
+import Data.Kind (Constraint, Type)
 
 {-
   By now in your Haskell quest, you'll have seen many type classes. Already,
@@ -18,12 +22,13 @@ import Data.Kind (Type)
 
   The common thread between these is that the class defines a characteristic of
   a **single** type. 'Eq' tells us that /a type/ has a notion of equivalence.
-  'Show' tells us that /a type/ has a string representation. 
+  'Show' tells us that /a type/ has a string representation.
 
   Let's think about the rough idea behind the 'Show' class:
 -}
 
-class SimpleShow (x :: Type) where
+type SimpleShow :: Type -> Constraint
+class SimpleShow x where
   simpleShow :: x -> String
 
 {-
@@ -32,7 +37,8 @@ class SimpleShow (x :: Type) where
   class that characterises this relationship? Enter @MultiParamTypeClasses@.
 -}
 
-class Transform (source :: Type) (target :: Type) where
+type Transform :: Type -> Type -> Constraint
+class Transform source target where
   transform :: source -> target
 
 {-
@@ -63,6 +69,7 @@ instance Show x => Transform x String where
   [Partial](https://github.com/purescript/documentation/blob/master/guides/The-Partial-type-class.md)
   to keep track of partial functions, which gives a good intuition of the ways
   in which these can be useful.
+  ! This is called a "Marker Trait" in Rust.
 -}
 
 {-
@@ -117,7 +124,7 @@ test2 = transform "hello"
   at such an instance now:
 -}
 
-data Which = A | B | C deriving Show
+data Which = A | B | C deriving (Show)
 
 instance {-# OVERLAPS #-} Transform (f a) Which where
   transform _ = A
@@ -179,7 +186,7 @@ test4 = transform [True] -- Prints A
      the choice isn't done according to some defined behaviour).
 
   4. If our winner is incoherent, we're done!
-  
+
   5. If not, find all the instances that /could/ match if we knew more*. If all
      these other instances are incoherent, return our winner! Otherwise, we've
      failed, and we don't know enough to decide :(
@@ -199,8 +206,8 @@ instance Sneaky Float Float where
   out the second type:
 -}
 
--- -- UNCOMMENT ME
--- huh = familiar (3.0 :: Float)
+huh :: Float -- This line cannot be commented...
+huh = familiar @Float {- ...so is this type application. -} 3.0
 
 {-
   As we're starting to learn, GHC is actually pretty good at telling us what is
@@ -232,12 +239,11 @@ heh = familiar (3.0 :: Double)
 
   Now, some of our types might have interesting instances for 'Sneaky', but
   we'd like to offer 'Sneaky a a' as a "default" instance. In other words, we
-  only want to use this instance __if all others fail__. Sound familiar?
+  want to use this instance __ONLY IF ALL OTHERS FAIL__. Sound familiar?
 -}
 
--- -- UNCOMMENT ME
--- instance {-# INCOHERENT #-} a ~ b => Sneaky a b where
---   familiar = id
+instance {-# INCOHERENT #-} a ~ b => Sneaky a b where
+  familiar = id
 
 {-
   Here's a scary-looking line of code, right? What we're saying here is, if you
@@ -249,7 +255,7 @@ heh = familiar (3.0 :: Double)
   Now, this all sounds sensible, so... why the scary name? Friends, we have
   some misconceptions to address:
 
-  1. _Most_ "incoherence" around type classes comes from what we call /orphan
+  1. _Most_ "incoherence" around type classes comes from what we call /ORPHAN
      instances/. These are instances defined for types that exist neither in
      the same module as the type declaration /nor/ the class declaration. If
      we avoid orphan instances (by, for example, creating @newtype@s when we

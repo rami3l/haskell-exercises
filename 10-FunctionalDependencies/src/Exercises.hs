@@ -8,32 +8,24 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Exercises where
 
 import Data.Kind (Type)
-import GHC.TypeLits (Symbol)
 import GHC.Generics (Generic (..))
 import qualified GHC.Generics as G
-
-
-
-
+import GHC.TypeLits (Symbol)
 
 {- ONE -}
 
 -- | Recall an old friend, the 'Newtype' class:
-
 class Newtype (new :: Type) (old :: Type) where
-  wrap   :: old -> new
+  wrap :: old -> new
   unwrap :: new -> old
 
 -- | a. Can we add a functional dependency to this class?
 
 -- | b. Why can't we add two?
-
-
-
-
 
 {- TWO -}
 
@@ -54,10 +46,6 @@ class Newtype (new :: Type) (old :: Type) where
 -- | c. Is there any sort of functional dependency that relates our
 -- parameterised functor to @entity@ or @index@? If so, how? If not, why not?
 
-
-
-
-
 {- THREE -}
 
 -- | Let's re-introduce one of our old favourites:
@@ -66,9 +54,9 @@ data Nat = Z | S Nat
 -- | When we did our chapter on @TypeFamilies@, we wrote an @Add@ family to add
 -- two type-level naturals together. If we do a side-by-side comparison of the
 -- equivalent "class-based" approach:
+class Add (x :: Nat) (y :: Nat) (z :: Nat) | x y -> z
 
-class       Add  (x :: Nat) (y :: Nat) (z :: Nat) | x y -> z
-type family Add' (x :: Nat) (y :: Nat)    :: Nat
+type family Add' (x :: Nat) (y :: Nat) :: Nat
 
 -- | We see here that there are parallels between classes and type families.
 -- Type families produce a result, not a constraint, though we could write
@@ -82,15 +70,12 @@ type family Add' (x :: Nat) (y :: Nat)    :: Nat
 
 -- | b. By our analogy, a type family has only "one functional dependency" -
 -- all its inputs to its one output. Can we write _more_ functional
--- dependencies for @Add@? Aside from @x y -> z@? 
+-- dependencies for @Add@? Aside from @x y -> z@?
 
 -- | c. We know with addition, @x + y = z@ implies @y + x = z@ and @z - x = y@.
 -- This should mean that any pair of these three variables should determine the
 -- other! Why couldn't we write all the possible functional dependencies that
 -- /should/ make sense?
-
-
-
 
 {- FOUR -}
 
@@ -99,18 +84,18 @@ data Proxy (a :: k) = Proxy
 -- | As we all know, type signatures are /not/ documentation. This is really
 -- because the names of types are far too confusing. To that end, we can give
 -- our types friendlier names to make the coding experience less intimidating:
-
 class (x :: k) `IsNamed` (label :: Symbol) where
-  fromName :: Proxy x     -> Proxy label
+  fromName :: Proxy x -> Proxy label
   fromName _ = Proxy
 
   toName :: Proxy label -> Proxy x
   toName _ = Proxy
 
 -- | Now we have this class, we can get to work!
+instance Int `IsNamed` "Dylan"
 
-instance Int   `IsNamed` "Dylan"
-instance IO    `IsNamed` "Barbara"
+instance IO `IsNamed` "Barbara"
+
 instance Float `IsNamed` "Kenneth"
 
 -- | a. In our glorious new utopia, we decide to enact a law that says, "No two
@@ -121,10 +106,6 @@ instance Float `IsNamed` "Kenneth"
 
 -- | c. Can you think of a less-contrived reason why labelling certain types
 -- might be useful in real-world code?
-
-
-
-
 
 {- FIVE -}
 
@@ -144,21 +125,16 @@ instance Omnipresent "Tom!"
 
 -- | c. Add another similarly-omnipresent parameter to this type class.
 
-
-
-
-
 {- SIX -}
 
 -- | You knew it was coming, didn't you?
-
 data HList (xs :: [Type]) where
-  HNil  :: HList '[]
+  HNil :: HList '[]
   HCons :: x -> HList xs -> HList (x ': xs)
 
 data SNat (n :: Nat) where
-  SZ ::           SNat  'Z
-  SS :: SNat n -> SNat ('S n)
+  SZ :: SNat 'Z
+  SS :: SNat n -> SNat ( 'S n)
 
 -- | a. Write a function (probably in a class) that takes an 'SNat' and an
 -- 'HList', and returns the value at the 'SNat''s index within the 'HList'.
@@ -169,28 +145,25 @@ data SNat (n :: Nat) where
 
 -- | d. Implement 'take' for the 'HList'.
 
-
-
-
-
 {- SEVEN -}
 
 -- | Recall our variant type:
-
 data Variant (xs :: [Type]) where
-  Here  ::         x  -> Variant (x ': xs)
+  Here :: x -> Variant (x ': xs)
   There :: Variant xs -> Variant (y ': xs)
 
 -- | We previously wrote a function to "inject" a value into a variant:
-
 class Inject (x :: Type) (xs :: [Type]) where
   inject :: x -> Variant xs
 
 instance Inject x (x ': xs) where
   inject = Here
 
-instance {-# OVERLAPPING #-} Inject x xs
-    => Inject x (y ': xs) where
+instance
+  {-# OVERLAPPING #-}
+  Inject x xs =>
+  Inject x (y ': xs)
+  where
   inject = There . inject
 
 -- | Write a function to "project" a value /out of/ a variant. In other words,
@@ -202,10 +175,6 @@ instance {-# OVERLAPPING #-} Inject x xs
 --   project (Proxy :: Proxy Bool) (inject True :: Variant '[Int, String, Bool])
 --     === Left Bool :: Either Bool (Variant '[Int, String])
 -- @
-
-
-
-
 
 {- EIGHT -}
 
@@ -220,10 +189,6 @@ instance {-# OVERLAPPING #-} Inject x xs
 -- | Write the type class required to implement this function, along with all
 -- its instances and functional dependencies.
 
-
-
-
-
 {- NINE -}
 
 -- | If you've made it this far, you're more than capable of digesting and
@@ -233,20 +198,17 @@ instance {-# OVERLAPPING #-} Inject x xs
 
 -- | We can write a little function to get the name of a type as a type-level
 -- symbol like so:
-
 class NameOf (x :: Type) (name :: Symbol) | x -> name
+
 instance GNameOf (Rep x) name => NameOf x name
 
 -- | We then have to implement this class that examines the generic tree...
 class GNameOf (rep :: Type -> Type) (name :: Symbol) | rep -> name
-instance GNameOf (G.D1 ('G.MetaData name a b c) d) name
+
+instance GNameOf (G.D1 ( 'G.MetaData name a b c) d) name
 
 -- | Write a function to get the names of the constructors of a type as a
 -- type-level list of symbols.
-
-
-
-
 
 {- TEN -}
 
@@ -256,11 +218,11 @@ instance GNameOf (G.D1 ('G.MetaData name a b c) d) name
 --
 -- liftA1 :: Applicative f => (a -> b) -> f a -> f b
 -- liftA1 = lift
--- 
+--
 -- liftA2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
 -- liftA2 = lift
 --
--- 
+--
 -- liftA3 :: Applicative f => (a -> b -> c -> d) -> f a -> f b -> f c -> f d
 -- liftA3 = lift
 
