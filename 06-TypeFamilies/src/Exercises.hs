@@ -5,12 +5,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Exercises where
 
 import Data.Kind (Constraint, Type)
 import Data.Type.Bool (If)
-import Data.Type.Equality (type (==))
+import Data.Type.Equality (type (==), type (:~:) (Refl))
 
 -- | Before we get started, let's talk about the @TypeOperators@ extension. All
 -- this does is allow us to write types whose names are operators, and write
@@ -167,8 +168,8 @@ type family x `Insert` xs where
 -- | Write a type family to /delete/ a promoted 'Nat' from a promoted 'Tree'.
 type Delete :: Nat -> Tree -> Tree
 type family x `Delete` xs where
-  x `Delete` Empty = Empty
-  x `Delete` Node Empty _ r = r
+  _ `Delete` Empty = Empty
+  _ `Delete` Node Empty _ r = r
   x `Delete` Node l x r = Node (TMaximum l `Delete` l) (TMaximum l) r
   x `Delete` Node l y r = If (x `Compare` y == LT) (Node (x `Delete` l) y r) (Node l y (x `Delete` r))
 
@@ -178,15 +179,66 @@ type family TMaximum xs where
   TMaximum (Node _ x Empty) = x
   TMaximum (Node _ _ r) = TMaximum r
 
+-- Below are some proofs!
+type ATree = Node (Node Empty Three Empty) Five (Node Empty Seven Empty)
+
+insertTest0 ::
+  Six `Insert` ATree 
+  :~: Node
+    (Node Empty Three Empty)
+    Five
+    (Node (Node Empty Six Empty) Seven Empty)
+insertTest0 = Refl
+
+insertTest1 ::
+  One `Insert` ATree 
+  :~: Node
+    (Node (Node Empty One Empty) Three Empty)
+    Five
+    (Node Empty Seven Empty)
+insertTest1 = Refl
+
+insertTest2 :: Five `Insert` ATree :~: ATree
+insertTest2 = Refl
+
+deleteTest0 :: Delete Z Empty :~: Empty
+deleteTest0 = Refl
+
+deleteTest1 :: Delete Z (Insert Z Empty) :~: Empty
+deleteTest1 = Refl
+
+deleteTest2 :: Insert Z (Insert Z Empty) :~: Insert Z Empty
+deleteTest2 = Refl
+
+deleteTest3 ::
+  Insert (S Z) (Insert Z Empty)
+  :~: 'Node 'Empty Z (Node Empty (S Z) Empty)
+deleteTest3 = Refl
+
+deleteTest4 :: Five `Delete` ATree :~: Node Empty Three (Node Empty Seven Empty)
+deleteTest4 = Refl
+
 {- SEVEN -}
 
 -- | With @TypeOperators@, we can use regular Haskell list syntax on the
 -- type-level, which I think is /much/ tidier than anything we could define.
-data HList (xs :: [Type]) where
+type HList :: [Type] -> Type
+data HList xs where
   HNil :: HList '[]
-  HCons :: x -> HList xs -> HList (x ': xs)
+  HCons :: x -> HList xs -> HList (x : xs)
+
+-- Require Relude.Extra.Type.AllHave
+-- deriving instance Show `AllHave` as => Show (HList as)
+
+type (++) :: [Type] -> [Type] -> [Type]
+type family as ++ bs where
+  '[] ++ bs = bs
+  (a:as) ++ bs = a : as ++ bs
 
 -- | Write a function that appends two 'HList's.
+happend :: HList as -> HList bs -> HList (as ++ bs)
+HNil `happend` bs = bs
+(HCons a as) `happend` bs = HCons a $ as `happend` bs
 
 {- EIGHT -}
 
