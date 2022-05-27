@@ -17,9 +17,9 @@ data Exlistential where
   Cons :: a -> Exlistential -> Exlistential
 
 -- | a. Write a function to "unpack" this exlistential into a list.
-unpackExlistential :: Exlistential -> (forall a. a -> r) -> [r]
-unpackExlistential Nil _ = []
-unpackExlistential (Cons a as) f = f a : unpackExlistential as f
+unpackE :: Exlistential -> (forall a. a -> r) -> [r]
+unpackE Nil _ = []
+unpackE (Cons a as) f = f a : unpackE as f
 
 {- | b. Regardless of which type @r@ actually is, what can we say about the
  values in the resulting list?
@@ -41,18 +41,18 @@ data CanFold a where
   CanFold :: Foldable f => f a -> CanFold a
 
 -- | a. The following function unpacks a 'CanFold'. What is its type?
-unpackCanFold :: (forall f. Foldable f => f a -> r) -> CanFold a -> r
-unpackCanFold f (CanFold x) = f x
+unpackCF :: (forall f. Foldable f => f a -> r) -> CanFold a -> r
+unpackCF f (CanFold x) = f x
 
-{- | b. Can we use 'unpackCanFold' to figure out if a 'CanFold' is "empty"?
+{- | b. Can we use 'unpackCF' to figure out if a 'CanFold' is "empty"?
  Could we write @length :: CanFold a -> Int@? If so, write it!
 -}
-flength :: CanFold a -> Int
-flength = unpackCanFold length
+lengthCF :: CanFold a -> Int
+lengthCF = unpackCF length
 
 -- | c. Write a 'Foldable' instance for 'CanFold'. Don't overthink it.
 instance Foldable CanFold where
-  foldMap f = unpackCanFold (foldMap f)
+  foldMap f = unpackCF (foldMap f)
 
 {- THREE -}
 
@@ -62,21 +62,21 @@ data EqPair where EqPair :: Eq a => a -> a -> EqPair
 {- | a. Write a function that "unpacks" an 'EqPair' by applying a user-supplied
  function to its pair of values in the existential type.
 -}
-unpackEqPair :: (forall a. Eq a => a -> a -> r) -> EqPair -> r
-unpackEqPair faar (EqPair a a') = faar a a'
+unpackEP :: (forall a. Eq a => a -> a -> r) -> EqPair -> r
+unpackEP faar (EqPair a a') = faar a a'
 
 {- | b. Write a function that takes a list of 'EqPair's and filters it
  according to some predicate on the unpacked values.
 -}
-epfilter :: (forall a. Eq a => a -> a -> Bool) -> [EqPair] -> [EqPair]
-epfilter f = filter (unpackEqPair f)
+filterEP :: (forall a. Eq a => a -> a -> Bool) -> [EqPair] -> [EqPair]
+filterEP f = filter (unpackEP f)
 
 {- | c. Write a function that unpacks /two/ 'EqPair's. Now that both our
  variables are in rank-2 position, can we compare values from different
  pairs?
 -}
-unpackEqPairs :: (forall a. Eq a => a -> a -> r) -> EqPair -> EqPair -> (r, r)
-unpackEqPairs f xs ys = (unpackEqPair f xs, unpackEqPair f ys)
+unpackEPs :: (forall a. Eq a => a -> a -> r) -> EqPair -> EqPair -> (r, r)
+unpackEPs f xs ys = (unpackEP f xs, unpackEP f ys)
 
 {- FOUR -}
 
@@ -240,6 +240,6 @@ data Vector (n :: Nat) (a :: Type) where
  problem: we don't know at compile time what the new length of our vector
  will be... but has that ever stopped us? Make it so!
 -}
-vfilter :: (a -> Bool) -> Vector n a -> (forall m. Vector m a -> r) -> r
-vfilter _ VNil v2r = v2r VNil
-vfilter pred (VCons a as) v2r = vfilter pred as (if pred a then v2r . VCons a else v2r)
+filterV :: (a -> Bool) -> Vector n a -> (forall m. Vector m a -> r) -> r
+filterV _ VNil v2r = v2r VNil
+filterV pred (VCons a as) v2r = filterV pred as (if pred a then v2r . VCons a else v2r)

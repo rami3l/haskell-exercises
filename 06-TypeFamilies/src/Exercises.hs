@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -68,9 +67,9 @@ type family x * y where
   S x * y = y + (x * y)
 
 -- | c. Write a function to add two 'SNat' values.
-sadd :: SNat x -> SNat y -> SNat (x + y)
-sadd SZ y = y
-sadd (SS x) y = SS (x `sadd` y)
+addS :: SNat x -> SNat y -> SNat (x + y)
+addS SZ y = y
+addS (SS x) y = SS (x `addS` y)
 
 {- TWO -}
 
@@ -81,9 +80,9 @@ data Vector count a where
 
 -- | a. Write a function that appends two vectors together. What would the size
 -- of the result be?
-append :: Vector m a -> Vector n a -> Vector (m + n) a
-VNil `append` v = v
-VCons a as `append` bs = VCons a $ as `append` bs
+appendV :: Vector m a -> Vector n a -> Vector (m + n) a
+VNil `appendV` v = v
+VCons a as `appendV` bs = VCons a $ as `appendV` bs
 
 -- | b. Write a 'flatMap' function that takes a @Vector n a@, and a function
 -- @a -> Vector m b@, and produces a list that is the concatenation of these
@@ -106,7 +105,7 @@ VCons a as `append` bs = VCons a $ as `append` bs
 -- avoid these messes.
 flatMap :: Vector n a -> (a -> Vector m b) -> Vector (n * m) b
 flatMap VNil _ = VNil
-flatMap (VCons x xs) f = f x `append` flatMap xs f
+flatMap (VCons x xs) f = f x `appendV` flatMap xs f
 
 {- THREE -}
 
@@ -243,9 +242,9 @@ type family as ++ bs where
   (a : as) ++ bs = a : as ++ bs
 
 -- | Write a function that appends two 'HList's.
-happend :: HList as -> HList bs -> HList (as ++ bs)
-HNil `happend` bs = bs
-(HCons a as) `happend` bs = HCons a $ as `happend` bs
+appendH :: HList as -> HList bs -> HList (as ++ bs)
+HNil `appendH` bs = bs
+(HCons a as) `appendH` bs = HCons a $ as `appendH` bs
 
 {- EIGHT -}
 

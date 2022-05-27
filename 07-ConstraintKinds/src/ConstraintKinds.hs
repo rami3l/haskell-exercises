@@ -1,11 +1,15 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 
-{- Two of the -} module {- topics I found particularly difficult to place were
--} ConstraintKinds {- and @PolyKinds@. I think as we explore concepts like
-MultiParamTypeClasses, it will become obvious why it's hard to say exactly
--} where {- it belongs. Anyway, all that for later; let's go! -}
+{- Two of the -}
+{- topics I found particularly difficult to place were
+-} module ConstraintKinds {- and @PolyKinds@. I think as we explore concepts like
+                          MultiParamTypeClasses, it will become obvious why it's hard to say exactly
+                          -} where
+
+{- it belongs. Anyway, all that for later; let's go! -}
 
 import Data.Kind (Constraint, Type)
 
@@ -14,9 +18,7 @@ import Data.Kind (Constraint, Type)
   For example, the @Maybe@ type has one, @a@:
 -}
 
-data Maybe a
-  = Nothing
-  | Just a
+data Maybe a = Nothing | Just a
 
 {-
   We also saw in the earlier chapters that we can use kind signatures to
@@ -66,7 +68,9 @@ eg5 = TCProxy
   This, dear reader, is the magic of ConstraintKinds!
 -}
 
-data HasConstraint (c :: Type -> Constraint) where
+type HasConstraint :: (Type -> Constraint) -> Type
+data HasConstraint c where
+  -- Item :: forall (c :: Type -> Constraint) x. c x => x -> HasConstraint c
   Item :: c x => x -> HasConstraint c
 
 {-
