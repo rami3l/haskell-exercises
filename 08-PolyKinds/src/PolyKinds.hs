@@ -1,10 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
 
-{- After a brief hiatus, we return with a -} module {- whose focus is on
-/kind polymorphism/, which is enabled by the -} PolyKinds {- extension. We'll
-find out -} where {- to use it, and wonder how we could do without it! -}
+{- After a brief hiatus, we return with a -}
+{- whose focus is on
+/kind polymorphism/, which is enabled by the -} module PolyKinds {- extension. We'll
+                                                                 find out -} where
+
+{- to use it, and wonder how we could do without it! -}
 
 {-
   Haskell, in general, /loves/ the notion of type polymorphism. Let's take a
@@ -77,29 +82,31 @@ idBool x = x
 {-
   We now don't have to do this at the type level! The only thing worth
   mentioning, which won't bother us too much in these exercises, is that kind
-  polymorphism has a trick that type polymorphism doesn't have: you can pattern
-  match on types within kinds in a kind-polymorphic type family. Don't panic,
+  polymorphism has a trick that type polymorphism doesn't have: you can /pattern
+  match on types within kinds/ in a kind-polymorphic type family. Don't panic,
   we'll take a look:
 -}
 
 data Secrets
 
-type family Smuggler (x :: k) :: k where
-  Smuggler (IO (Secrets, a)) = IO a
-  Smuggler 0                 =    1
-  Smuggler a                 =    a
+type Smuggler :: k -> k
+type family Smuggler x where
+  Smuggler (IO (Secrets, a)) = IO a -- Type -> Type
+  Smuggler 0 = 1 -- GHC.Types.Nat -> GHC.Types.Nat
+  Smuggler a = a -- We don't know. You might even write:
+  -- Smuggler a = Eq -- Type -> Constraint
 
 {-
   Huh. It seems that, while we said this function would work for /any/ kind, we
-  actually can inspect the kind in our rules. As a result, type families aren't
-  necessarily __parametric__: seeing `type family Id (x :: k) :: k` doesn't
+  actually can inspect the kind in our rules. As a result, type families /aren't
+  necessarily __parametric__/: seeing `type family Id (x :: k) :: k` doesn't
   tell you as much about its implementation as `id :: a -> a` does for a value-
   level function:
 -}
 
 smuggle :: a -> a
--- smuggle (xs :: IO (Secrets, a)) = fmap snd xs
-smuggle a                       = a
+-- smuggle (xs :: IO (Secrets, a)) = fmap snd xs -- This fails!
+smuggle a = a
 
 {-
   Once you enable the extensions as GHC tells you, the error is that we
