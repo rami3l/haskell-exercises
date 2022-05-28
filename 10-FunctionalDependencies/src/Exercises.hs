@@ -8,10 +8,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 
 module Exercises where
 
-import Data.Kind (Type)
+import Data.Kind (Type, Constraint)
 import GHC.Generics (Generic (..))
 import qualified GHC.Generics as G
 import GHC.TypeLits (Symbol)
@@ -19,7 +20,9 @@ import GHC.TypeLits (Symbol)
 {- ONE -}
 
 -- | Recall an old friend, the 'Newtype' class:
-class Newtype (new :: Type) (old :: Type) where
+
+type Newtype :: Type -> Type -> Constraint
+class Newtype new old | new -> old where
   wrap :: old -> new
   unwrap :: new -> old
 
@@ -27,14 +30,20 @@ class Newtype (new :: Type) (old :: Type) where
 
 -- | b. Why can't we add two?
 
+-- We wouldn't want to! It's very useful to be able to add multiple newtypes
+-- around the /same/ old type - for example, we might want to make sure we
+-- don't confuse two 'Double' values when one is being used as a distance and
+-- the other as a time duration.
+
 {- TWO -}
 
 -- | Let's go back to a problem we had in the last exercise, and imagine a very
 -- simple cache in IO. Uncomment the following:
 
--- class CanCache (entity :: Type) (index :: Type) where
---   store :: entity -> IO ()
---   load  :: index -> IO (Maybe entity)
+type Cache :: Type -> Type -> (Type -> Type) -> Constraint
+class Cache item uid f | item -> uid where
+  store :: item  -> f ()
+  load :: uid -> f (Maybe item)
 
 -- | a. Uh oh - there's already a problem! Any @entity@ type should have a
 -- fixed type of id/@index@, though... if only we could convince GHC... Could
@@ -44,19 +53,25 @@ class Newtype (new :: Type) (old :: Type) where
 -- we call @store@ or @load@... can we parameterise it in some way?
 
 -- | c. Is there any sort of functional dependency that relates our
--- parameterised functor to @entity@ or @index@? If so, how? If not, why not?
+-- parameterized functor to @entity@ or @index@? If so, how? If not, why not?
+
+-- | No, and nor would we want one - it would be nice to pick the functor for
+-- the same entity/index pair to be different things depending on, say, whether
+-- we're running a test or in production.
 
 {- THREE -}
 
--- | Let's re-introduce one of our old favourites:
+-- | Let's re-introduce one of our old favorites:
 data Nat = Z | S Nat
 
 -- | When we did our chapter on @TypeFamilies@, we wrote an @Add@ family to add
 -- two type-level naturals together. If we do a side-by-side comparison of the
 -- equivalent "class-based" approach:
-class Add (x :: Nat) (y :: Nat) (z :: Nat) | x y -> z
+type Add :: Nat -> Nat -> Nat -> Constraint
+class Add x y z | x y -> z
 
-type family Add' (x :: Nat) (y :: Nat) :: Nat
+type Add' :: Nat -> Nat -> Nat
+type family Add' x y
 
 -- | We see here that there are parallels between classes and type families.
 -- Type families produce a result, not a constraint, though we could write
