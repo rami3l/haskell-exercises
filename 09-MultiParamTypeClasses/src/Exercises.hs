@@ -1,12 +1,12 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
@@ -37,7 +37,7 @@ newtype YourInt = YourInt Int
  Source: <https://hackage.haskell.org/package/newtype-0.2.2.0/docs/Control-Newtype.html#t:Newtype>
 -}
 type Newtype :: Type -> Type -> Constraint
-class Newtype new old where
+class Newtype new old | new -> old where
   wrap :: old -> new
   unwrap :: new -> old
 
@@ -62,6 +62,27 @@ addW w w' = wrap $ unwrap w + unwrap w'
  rewrite the class using an associated type, @Old@, to indicate the
  "unwrapped" type. What are the signatures of 'wrap' and 'unwrap'?
 -}
+type Newtype' :: Type -> Constraint
+class Newtype' new where
+  -- ! Similar to Rust trait's associated type (@trait C { type T; }@),
+  -- for any implementer I of C, since it can implement C exactly once,
+  -- there's a unique associated type T, thus a TYPE-LEVEL FUNCTION has been
+  -- established from I to T. Below is actually a type family:
+  type Old (new :: Type) :: Type
+
+  wrap' :: Old new -> new
+  unwrap' :: new -> Old new
+
+instance Newtype' MyInt where
+  -- The full syntax actually starts with @type instance@:
+  type Old MyInt = Int
+  wrap' = MyInt
+  unwrap' (MyInt n) = n
+
+instance Newtype' YourInt where
+  type Old YourInt = Int
+  wrap' = YourInt
+  unwrap' (YourInt n) = n
 
 {- TWO -}
 
@@ -74,8 +95,7 @@ traverse1 = traverse
 {- | This is all very well, but we often don't need @f@ to be an 'Applicative'.
  For example, let's look at the good ol' 'Identity' type:
 -}
-newtype Identity a = Identity a
-  deriving (Functor) -- LANGUAGE DeriveFunctor
+newtype Identity a = Identity a deriving (Functor) -- LANGUAGE DeriveFunctor
 
 instance Foldable Identity where
   foldMap f (Identity x) = f x
@@ -92,16 +112,33 @@ instance Traversable Identity where
 {- | a. Write that little dazzler! What error do we get from GHC? What
  extension does it suggest to fix this?
 -}
-
--- class Wanderable … … where
---   wander :: … => (a -> f b) -> t a -> f (t b)
+type Wanderable :: ((Type -> Type) -> Constraint) -> (Type -> Type) -> Constraint
+class Wanderable c t where
+  wander :: c f => (a -> f b) -> t a -> f (t b)
+-- ^ @{\-# LANGUAGE AllowAmbiguousTypes #-\}@ required.
 
 -- | b. Write a 'Wanderable' instance for 'Identity'.
+instance Wanderable Functor Identity where
+  f `wander` (Identity x) = Identity <$> f x
 
 {- | c. Write 'Wanderable' instances for 'Maybe', '[]', and 'Proxy', noting the
  differing constraints required on the @f@ type. '[]' might not work so well,
  and we'll look at /why/ in the next part of this question!
 -}
+instance Wanderable Applicative Maybe where
+  _ `wander` Nothing = pure Nothing
+  f `wander` (Just x) = Just <$> f x
+
+instance Wanderable Applicative [] where
+  _ `wander` [] = pure []
+  {- @Could not deduce c0 f@ - the problem here is that, in the recursive case,
+  we can't figure out which @Wanderable@ instance we want for the tail. To
+  /us/, this seems strange - we just want the list version! However, we
+  haven't yet told GHC that there's only ever going to be one @Wanderable@
+  instance for @[]@, so it will complain.
+  Thus, @TypeApplications@ must be used to disambiguate:
+  <https://gitlab.haskell.org/ghc/ghc/-/wikis/type-application> -}
+  f `wander` (x : xs) = (:) <$> f x <*> wander @Applicative @[] f xs
 
 {- | d. Assuming you turned on the extension suggested by GHC, why does the
  following produce an error? Using only the extensions we've seen so far, how
