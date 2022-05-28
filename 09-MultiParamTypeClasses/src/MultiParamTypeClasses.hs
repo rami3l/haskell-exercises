@@ -183,7 +183,7 @@ test4 = transform [True] -- Prints A
   3. Ignoring any instances marked @INCOHERENT@, if exactly one match remains,
      we have a winner! If all remaining instances /are/ marked @INCOHERENT@,
      pick one of them at random, and we have a winner! (Not really random, but
-     the choice isn't done according to some defined behaviour).
+     the choice isn't done according to some defined behavior).
 
   4. If our winner is incoherent, we're done!
 
@@ -259,7 +259,7 @@ instance {-# INCOHERENT #-} a ~ b => Sneaky a b where
      instances/. These are instances defined for types that exist neither in
      the same module as the type declaration /nor/ the class declaration. If
      we avoid orphan instances (by, for example, creating @newtype@s when we
-     want different behaviours instead of overlapping existing instances),
+     want different behaviors instead of overlapping existing instances),
      there is no incoherence with @OVERLAPPING@, @OVERLAPS@, or @OVERLAPPABLE@,
      thus they are simply safe – and extremely useful – tools for us to use.
 

@@ -380,19 +380,22 @@ data Temperature = Hot | Cold
 
 -- ... and some singletons, why not?
 
-data SWeather (w :: Weather) where
-  SSunny :: SWeather 'Sunny
-  SRaining :: SWeather 'Raining
+type SWeather :: Weather -> Type
+data SWeather w where
+  SSunny :: SWeather Sunny
+  SRaining :: SWeather Raining
 
-data STemperature (t :: Temperature) where
-  SHot :: STemperature 'Hot
-  SCold :: STemperature 'Cold
+type STemperature :: Temperature -> Type
+data STemperature t where
+  SHot :: STemperature Hot
+  SCold :: STemperature Cold
 
 {- | Now, our app is going to be ready-for-scale, B2B, and proven with zero
  knowledge, so we want type safety /at the core/. Naturally, we've defined
  the relationship between the two domains as a type class.
 -}
-class Coat (a :: Weather) (b :: Temperature) where
+type Coat :: Weather -> Temperature -> Constraint
+class Coat a b where
   doINeedACoat :: SWeather a -> STemperature b -> Bool
 
 {- | It's early days, and we're just building an MVP, but there are some rules
@@ -400,7 +403,7 @@ class Coat (a :: Weather) (b :: Temperature) where
 -}
 
 -- No one needs a coat when it's sunny!
-instance Coat Sunny b where doINeedACoat _ _ = False
+instance {-# INCOHERENT #-} Coat Sunny b where doINeedACoat _ _ = False
 
 -- It's freezing out there - put a coat on!
 instance Coat a Cold where doINeedACoat _ _ = True
@@ -408,9 +411,8 @@ instance Coat a Cold where doINeedACoat _ _ = True
 {- | Several months pass, and your app is used by billions of people around the
  world. All of a sudden, your engineers encounter a strange error:
 -}
-
--- test :: Bool
--- test = doINeedACoat SSunny SCold
+testCoat :: Bool
+testCoat = doINeedACoat SSunny SCold
 
 {- | Clearly, our data scientists never thought of a day that could
  simultaneously be sunny /and/ cold. After months of board meetings, a
@@ -419,9 +421,11 @@ instance Coat a Cold where doINeedACoat _ _ = True
 -}
 
 {- | a. Uncomment the above, and add OVERLAPPING and/or OVERLAPPABLE pragmas
- to prioritise the second rule. Why didn't that work? Which step of the
+ to prioritize the second rule. Why didn't that work? Which step of the
  instance resolution process is causing the failure?
 -}
+
+-- Answer: To GHC, the two instances are equally SPECIFIC, so OVERLAP* doesn't work.
 
 {- | b. Consulting the instance resolution steps, which pragma /could/ we use
  to solve this problem? Fix the problem accordingly.
@@ -430,6 +434,8 @@ instance Coat a Cold where doINeedACoat _ _ = True
 {- | c. In spite of its scary name, can we verify that our use of it /is/
  undeserving of the first two letters of its name?
 -}
+
+-- There's only one INCOHERENT instance, so the choice will never be non-deterministic.
 
 {- NINE -}
 
@@ -442,11 +448,18 @@ instance Coat a Cold where doINeedACoat _ _ = True
 
 -- | a. Are these in conflict? When?
 
+-- Answer: No, because String doesn't implement `Show`.
+-- In fact, the printing of a `String` is handled in the `showList` method of `Char`.
+
 {- | b. Let's say we want to define an instance for any @f a@ where the @f@ is
  'Foldable', by converting our type to a list and then showing that. Is there
  a pragma we can add to the first 'Show' instance above so as to preserve
- current behaviour? Would we need /more/ pragmas than this?
+ current behavior? Would we need /more/ pragmas than this?
 -}
+
+-- OVERLAPPABLE would do it for the previous case. In our specific contrived case,
+-- we might be better off adding OVERLAPS to all of them, so we simply pick the
+-- most specific instance available at the time.
 
 {- | c. Somewhat confusingly, we've now introduced incoherence: depending on
  whether or not I've imported this module, 'show' will behave in different
@@ -454,6 +467,10 @@ instance Coat a Cold where doINeedACoat _ _ = True
  here, but they are missing the bigger issue; what have we done? How could we
  have avoided it?
 -}
+
+-- @f a@ is almost certainly an orphan instance! We'd have been better off
+-- creating something like @newtype ShowFoldable f a = SF (f a)@ and writing a
+-- Show instance for that.
 
 {- TEN -}
 
@@ -493,15 +510,28 @@ class CommentCache where
 {- | a. What are those three ways? Could we turn them into parameters to a
  typeclass? Do it!
 -}
+type Cache :: Type -> Type -> (Type -> Type) -> Constraint
+class Cache item uid f | item -> uid f where
+  store :: item -> Map uid item -> Map uid item
+  load :: Map uid item -> uid -> f uid
 
 {- | b. Write instances for 'User' and 'Comment', and feel free to implement
  them as 'undefined' or 'error'. Now, before uncommenting the following, can
  you see what will go wrong? (If you don't see an error, try to call it in
  GHCi...)
 -}
+instance Cache User UserId (Either Status) where
+  store = undefined
+  load = undefined
 
--- oops cache = load cache (UserId (123 :: Int))
+instance Cache Comment CommentId Maybe where
+  store = undefined
+  load = undefined
+
+oops cache = load cache (UserId (123 :: Int))
 
 {- | c. Do we know of a sneaky trick that would allow us to fix this? Possibly
  involving constraints? Try!
 -}
+
+-- Oops, @FunctionalDependencies@ required.
