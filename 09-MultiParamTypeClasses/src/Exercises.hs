@@ -259,7 +259,7 @@ data HList xs where
  the front of an HList:
 -}
 type HTake :: Nat -> [Type] -> [Type] -> Constraint
-class HTake n xs xs' where
+class HTake n xs xs' | n xs -> xs' where
   htake :: SNat n -> HList xs -> HList xs'
 
 -- | a. Write an instance for taking 0 elements.
