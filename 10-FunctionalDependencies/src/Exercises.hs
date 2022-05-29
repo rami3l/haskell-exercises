@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -5,24 +6,25 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Exercises where
 
-import Data.Kind (Type, Constraint)
-import GHC.Generics (Generic (..))
+import Data.Data (type (:~:) (Refl))
+import Data.Function ((&))
+import Data.Kind (Constraint, Type)
+import GHC.Generics (Generic (..), type (:+:))
 import qualified GHC.Generics as G
-import GHC.TypeLits ( Symbol, ErrorMessage(..), TypeError )
+import GHC.TypeLits (ErrorMessage (..), Symbol, TypeError)
 
 {- ONE -}
 
 -- | Recall an old friend, the 'Newtype' class:
-
 type Newtype :: Type -> Type -> Constraint
 class Newtype new old | new -> old where
   wrap :: old -> new
@@ -41,10 +43,9 @@ class Newtype new old | new -> old where
 
 -- | Let's go back to a problem we had in the last exercise, and imagine a very
 -- simple cache in IO. Uncomment the following:
-
 type Cache :: Type -> Type -> (Type -> Type) -> Constraint
 class Cache item uid f | item -> uid where
-  store :: item  -> f ()
+  store :: item -> f ()
   load :: uid -> f (Maybe item)
 
 -- | a. Uh oh - there's already a problem! Any @entity@ type should have a
@@ -85,6 +86,7 @@ type family Add' x y
 -- pattern-matching on the first argument. REMEMBER THAT INSTANCES CAN HAVE
 -- CONSTRAINTS, AND THIS IS HOW WE DO RECURSION!
 instance Add Z m m
+
 instance Add n m nm => Add (S n) m (S nm)
 
 -- | b. By our analogy, a type family has only "one functional dependency" -
@@ -107,7 +109,7 @@ data Proxy a = Proxy
 -- | As we all know, type signatures are /not/ documentation. This is really
 -- because the names of types are far too confusing. To that end, we can give
 -- our types friendlier names to make the coding experience less intimidating:
-type  IsNamed :: k -> Symbol -> Constraint
+type IsNamed :: k -> Symbol -> Constraint
 class x `IsNamed` label | x -> label, label -> x where
   fromName :: Proxy x -> Proxy label
   fromName _ = Proxy
@@ -122,7 +124,6 @@ instance IO `IsNamed` "Barbara"
 
 instance Float `IsNamed` "Kenneth"
 
-
 -- | a. In our glorious new utopia, we decide to enact a law that says, "No two
 -- types shall have the same name". Similarly, "No type shall have two names".
 -- Is there a way to get GHC to help us uphold the law?
@@ -132,7 +133,6 @@ instance Float `IsNamed` "Kenneth"
 -- instance IO `IsNamed` "John"
 
 -- | b. Write the identity function restricted to types named "Kenneth".
-
 idK :: a `IsNamed` "Kenneth" => a -> a
 idK = id
 
@@ -151,7 +151,7 @@ type Omnipresent :: Symbol -> Constraint
 class Omnipresent r | -> r -- @-> r@ says "@r@ is unique".
 
 -- | Here's a fun little instance:
-instance Omnipresent "Tom!" where
+instance Omnipresent "Tom!"
 
 -- | a. Is there a way to enforce that no other instance of this class can ever
 -- exist? Do we /need/ variables on the left-hand side of a functional
@@ -166,8 +166,8 @@ instance Omnipresent "Tom!" where
 -- Answer: ?
 
 -- | c. Add another similarly-omnipresent parameter to this type class.
-
 class Omnipresent2 (r :: Symbol) (s :: Symbol) | -> r s
+
 instance Omnipresent2 "Tom!" "Harding!"
 
 {- SIX -}
@@ -176,6 +176,14 @@ instance Omnipresent2 "Tom!" "Harding!"
 data HList :: [Type] -> Type where
   HNil :: HList '[]
   HCons :: a -> HList as -> HList (a : as)
+
+deriving instance Show `AllHave` as => Show (HList as)
+
+-- Again, Copied from @Relude.Extra.Type.AllHave@:
+type AllHave :: (k -> Constraint) -> [k] -> Constraint
+type family f `AllHave` xs where
+  _ `AllHave` '[] = ()
+  f `AllHave` (x : xs) = (f x, f `AllHave` xs)
 
 data SNat :: Nat -> Type where
   SZ :: SNat Z
@@ -188,15 +196,13 @@ class Get xs n x | xs n -> x where
   get :: SNat n -> HList xs -> x
 
 -- | b. Add the appropriate functional dependency.
-
-instance Get (x:xs) Z x where
+instance Get (x : xs) Z x where
   get SZ (HCons x _) = x
 
-instance Get xs n x' => Get (x:xs) (S n) x' where
+instance Get xs n x' => Get (x : xs) (S n) x' where
   get (SS n) (HCons _ xs) = get n xs
 
 -- | c. Write a custom type error!
-
 instance
   TypeError
     ( Text "Index ‘"
@@ -217,7 +223,7 @@ class HTake n xs xs' | n xs -> xs' where
 instance HTake Z xs '[] where
   htake SZ _ = HNil
 
-instance (HTake n xs xs') => HTake (S n) (x : xs) (x : xs') where
+instance HTake n xs xs' => HTake (S n) (x : xs) (x : xs') where
   htake (SS n) (x `HCons` xs) = x `HCons` htake n xs
 
 instance HTake n '[] '[] where
@@ -230,8 +236,10 @@ type Variant :: [Type] -> Type
 data Variant xs where
   Here :: x -> Variant (x : xs)
   There :: Variant xs -> Variant (x : xs)
+
 variants :: [Variant [Bool, Int, String]]
 variants = [Here True, There (Here 3), There (There (Here "hello"))]
+
 variants' :: [Variant [Bool, Int, String]]
 variants' = [inject True, inject @Int 3, inject "hello"]
 
@@ -268,15 +276,14 @@ instance
 --   project (Proxy :: Proxy Bool) (inject True :: Variant '[Int, String, Bool])
 --     === Left Bool :: Either Bool (Variant '[Int, String])
 -- @
-
 class Project a as os where
   project :: Proxy a -> Variant as -> Either a (Variant os)
 
-instance Project a (a:as) as where
+instance Project a (a : as) as where
   project Proxy (Here a) = Left a
   project Proxy (There as) = Right as
 
-instance {-# overlappable #-} Project a as os => Project a (o:as) (o:os) where
+instance {-# OVERLAPPABLE #-} Project a as os => Project a (o : as) (o : os) where
   project Proxy (There as) = There <$> project Proxy as
   project Proxy (Here _) = undefined
 
@@ -292,6 +299,30 @@ instance {-# overlappable #-} Project a as os => Project a (o:as) (o:os) where
 
 -- | Write the type class required to implement this function, along with all
 -- its instances and functional dependencies.
+type HUpdate :: Nat -> Type -> [Type] -> [Type] -> Constraint
+class HUpdate n f xs xs' | n f xs -> xs' where
+  hupdate :: SNat n -> f -> HList xs -> HList xs'
+
+instance HUpdate Z (x -> x') (x : xs) (x' : xs) where
+  hupdate SZ f (x `HCons` xs) = f x `HCons` xs
+
+instance HUpdate n (x -> x') xs os => HUpdate (S n) (x -> x') (o : xs) (o : os) where
+  hupdate (SS n) f (x `HCons` xs) = x `HCons` hupdate n f xs
+
+instance
+  TypeError
+    ( Text "Index ‘"
+        :<>: ShowType Z
+        :<>: Text "’ out of range"
+    ) =>
+  HUpdate Z f '[] '[()]
+  where
+  hupdate = undefined
+
+testHUpdate :: HList '[[Char], Int, Bool, Char]
+testHUpdate =
+  HNil & HCons 'A' & HCons True & HCons @Int 3 & HCons "wow"
+    & hupdate (SS (SS SZ)) not
 
 {- NINE -}
 
@@ -302,17 +333,39 @@ instance {-# overlappable #-} Project a as os => Project a (o:as) (o:os) where
 
 -- | We can write a little function to get the name of a type as a type-level
 -- symbol like so:
-class NameOf (x :: Type) (name :: Symbol) | x -> name
-
-instance GNameOf (Rep x) name => NameOf x name
+type NameOf :: Type -> Symbol -> Constraint
+class x `NameOf` name | x -> name
 
 -- | We then have to implement this class that examines the generic tree...
-class GNameOf (rep :: Type -> Type) (name :: Symbol) | rep -> name
+type GNameOf :: (Type -> Type) -> Symbol -> Constraint
+class rep `GNameOf` name | rep -> name
 
-instance GNameOf (G.D1 ( 'G.MetaData name a b c) d) name
+instance Rep x `GNameOf` name => x `NameOf` name
+
+instance G.MetaData name mod pkg newty `G.D1` cons `GNameOf` name
 
 -- | Write a function to get the names of the constructors of a type as a
 -- type-level list of symbols.
+type CNamesOf :: Type -> [Symbol] -> Constraint
+class x `CNamesOf` cnames | x -> cnames
+
+type GCNamesOf :: (Type -> Type) -> [Symbol] -> Constraint
+class rep `GCNamesOf` cnames | rep -> cnames
+
+instance Rep x `GCNamesOf` cnames => x `CNamesOf` cnames
+
+instance cons `GCNamesOf` cnames => metadata `G.D1` cons `GCNamesOf` cnames
+
+instance G.MetaCons cname fixity hasSels `G.C1` sels `GCNamesOf` '[cname]
+
+instance (c `GCNamesOf` ns, c' `GCNamesOf` ns', Append ns ns' os) => (c :+: c') `GCNamesOf` os
+
+type Append :: [k] -> [k] -> [k] -> Constraint
+class Append as bs os | as bs -> os
+
+instance Append '[] bs bs
+
+instance Append as bs os => Append (a : as) bs (a : os)
 
 {- TEN -}
 
@@ -333,14 +386,23 @@ instance GNameOf (G.D1 ( 'G.MetaData name a b c) d) name
 -- | Write this function, essentially generalising the f <$> a <*> b <*> c...
 -- pattern. It may help to see it as pure f <*> a <*> b <*> c..., and start
 -- with a function like this:
+type Lift :: (Type -> Type) -> Type -> Type -> Constraint
+class Lift f ts fts | f ts -> fts, fts -> f where
+  lift' :: f ts -> fts
 
--- lift :: (Applicative f, Lift f i o) => i -> o
--- lift = lift' . pure
+instance {-# INCOHERENT #-} Applicative f => Lift f t (f t) where
+  lift' = id
+
+instance (Applicative f, Lift f ts fts, fts' ~ (f t -> fts)) => Lift f (t -> ts) fts' where
+  lift' f g = lift' $ f <*> g
+
+lift :: (Applicative f, Lift f i o) => i -> o
+lift = lift' . pure
 
 -- | @class Lift f i o ... where lift' :: ...@ is your job! If you get this
 -- right, perhaps with some careful use of @INCOHERENT@, equality constraints,
 -- and functional dependencies, you should be able to get some pretty amazing
 -- type inference:
---
--- >>> :t lift (++)
--- lift (++) :: Applicative f => f [a] -> f [a] -> f [a]
+
+-- testLift :: Applicative f => f [a] -> f [a] -> f [a]
+-- testLift = lift (++)
